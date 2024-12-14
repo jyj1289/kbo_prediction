@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Baseball Matches</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f5f5f5;
+        }
+
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            width: 100%;
+            margin: 20px 0;
+        }
+
+
+        .nav-link {
+            position: absolute;
+            left: 20px;
+            top: 0;
+            font-size: 18px;
+            font-weight: bold;
+            color: #257CFF;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .arrow {
+            cursor: pointer;
+            margin: 0 15px;
+            font-size: 24px;
+        }
+        .date {
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .card-container {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .card {
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            width: 220px;
+            padding: 15px;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            cursor: pointer;
+            transition: transform 0.2s, background-color 0.2s;
+        }
+
+        .card:hover {
+            transform: scale(1.05);
+        }
+
+        .card.selected {
+            background-color: #257CFF;
+            border-color: #257CFF;
+        }
+
+        .card .stadium {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .card .time {
+            font-size: 14px;
+            color: #888;
+            margin-bottom: 10px;
+        }
+
+        .card .status {
+            background: #ccc;
+            color: #fff;
+            padding: 5px 10px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            display: inline-block;
+            font-size: 12px;
+        }
+
+        .card .teams {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .card img {
+            width: 50px;
+            height: 50px;
+        }
+
+        .prediction {
+            margin-top: 20px;
+            font-size: 16px;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        .prediction p {
+            margin: 5px 0;
+        }
+
+        .chart-container {
+            width: 80%;
+            margin-top: 30px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <a class="nav-link" href="index.html">야구ON</a>
+        <div class="arrow" id="prev-arrow">←</div>
+        <div class="date" id="current-date">2025-03-22</div>
+        <div class="arrow" id="next-arrow">→</div>
+    </div>
+
+    <div class="card-container" id="card-container"></div>
+
+    <div class="prediction" id="prediction"></div>
+
+    <div class="chart-container" id="chart-container">
+        <canvas id="attendanceChart"></canvas>
+    </div>
+
+    <script src="../data/kbo_schedule.json" type="text/javascript"></script>
+    <script src="../data/attendance_mean.json" type="text/javascript"></script>
+    <script>
+        const startDate = new Date("2025-03-22");
+        const endDate = new Date("2025-05-31");
+
+        const cardContainer = document.getElementById("card-container");
+        const predictionDiv = document.getElementById("prediction");
+        const currentDateDiv = document.getElementById("current-date");
+        const chartContainer = document.getElementById("chart-container");
+
+        let scheduleData = {};
+        let attendanceData = {};
+        let selectedCard = null;
+        let chart = null;
+
+        async function loadData() {
+            try {
+                scheduleData = JSON.parse(JSON.stringify(TestFile)); // Replace with schedule data
+                attendanceData = JSON.parse(JSON.stringify(TestFile2)); // Replace with attendance data
+                const initialDate = getDateFromURL() || "2025-03-22";
+                currentDate = new Date(initialDate);
+                updateDate();
+            } catch (error) {
+                console.error("Error loading data:", error);
+            }
+        }
+
+        function getDateFromURL() {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get("date");
+        }
+
+        function generateCards(date) {
+            cardContainer.innerHTML = "";
+            const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+            const dayKey = date.toISOString().split("T")[0];
+
+            predictionDiv.innerHTML = "";
+            if (chartContainer) chartContainer.style.display = "none";
+
+            if (selectedCard) {
+                selectedCard.classList.remove("selected");
+                selectedCard = null;
+            }
+
+            if (!scheduleData[monthKey]) {
+                cardContainer.innerHTML = `<p>No matches scheduled for this month.</p>`;
+                return;
+            }
+
+            const matches = scheduleData[monthKey].filter(match => match.date === dayKey);
+            if (matches.length === 0) {
+                cardContainer.innerHTML = `<p>No matches scheduled for this date.</p>`;
+                return;
+            }
+
+            matches.forEach(match => {
+                const { home_team, away_team, location } = match;
+                const time = date.getDay() === 0 || date.getDay() === 6 ? "17:00" : "18:30";
+
+                const card = document.createElement("div");
+                card.className = "card";
+                card.innerHTML = `
+                    <div class="stadium">${location} | ${time}</div>
+                    <div class="status">경기예정</div>
+                    <div class="teams">
+                        <img src="./images/${home_team}.svg" alt="${home_team}">
+                        <span>VS</span>
+                        <img src="./images/${away_team}.svg" alt="${away_team}">
+                    </div>
+                `;
+
+                card.addEventListener("click", () => handleCardSelection(card, date, location, home_team, away_team));
+                cardContainer.appendChild(card);
+            });
+        }
+
+        function handleCardSelection(card, date, location, homeTeam, awayTeam) {
+            if (selectedCard) selectedCard.classList.remove("selected");
+            selectedCard = card;
+            selectedCard.classList.add("selected");
+
+            fetchPrediction(date, location, homeTeam, awayTeam);
+        }
+
+        async function fetchPrediction(date, location, homeTeam, awayTeam) {
+            try {
+                const response = await fetch("http://localhost:8080/predict", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        date: date.toISOString().split("T")[0],
+                        location: location,
+                        home_team: homeTeam,
+                        away_team: awayTeam,
+                    }),
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    const dayOfWeek = date.toLocaleString("ko-KR", { weekday: "short" });
+                    const avgAttendance = attendanceData[location][dayOfWeek] || 0;
+
+                    predictionDiv.innerHTML = `
+                        <p>${location} 경기장</p>
+                        <p>예상 관중 수: ${data.predicted_attendance}명</p>
+                        <p>티켓팅 성공 확률: ${data.ticketing_probability}%</p>
+                        <p>평균 관중수(${dayOfWeek}): ${avgAttendance}명</p>
+                        <p>차이: ${data.predicted_attendance - avgAttendance}명</p>
+                    `;
+
+                    if (chartContainer) chartContainer.style.display = "block";
+                    updateChart(location, dayOfWeek, data.predicted_attendance);
+                }
+            } catch (error) {
+                predictionDiv.innerHTML = `<p>Error fetching prediction.</p>`;
+            }
+        }
+
+        function updateChart(location, dayOfWeek, predictedAttendance) {
+            const weekDays = ["화", "수", "목", "금", "토", "일"];
+            const avgAttendances = weekDays.map(day => attendanceData[location][day] || 0);
+
+            const colors = weekDays.map(day => (day === dayOfWeek ? "#FF5733" : "#257CFF"));
+
+            if (chart) chart.destroy();
+
+            const ctx = document.getElementById("attendanceChart").getContext("2d");
+            chart = new Chart(ctx, {
+                type: "bar",
+                data: {
+                    labels: weekDays,
+                    datasets: [{
+                        label: `${location} 평균 관중 수`,
+                        data: avgAttendances,
+                        backgroundColor: colors,
+                    }],
+                },
+                options: {
+                    plugins: { legend: { display: false }, title: { display: true, text: `${location} 경기장 요일별 평균 관중 수` } },
+                    responsive: true,
+                },
+            });
+        }
+
+        function updateDate() {
+            currentDateDiv.textContent = currentDate.toISOString().split("T")[0];
+            generateCards(currentDate);
+
+            predictionDiv.innerHTML = "";
+            if (chartContainer) chartContainer.style.display = "none";
+            if (chart) {
+                chart.destroy();
+                chart = null;
+            }
+        }
+
+        document.getElementById("prev-arrow").addEventListener("click", () => {
+            if (currentDate > startDate) currentDate.setDate(currentDate.getDate() - 1);
+            updateDate();
+        });
+
+        document.getElementById("next-arrow").addEventListener("click", () => {
+            if (currentDate < endDate) currentDate.setDate(currentDate.getDate() + 1);
+            updateDate();
+        });
+
+        loadData();
+    </script>
+</body>
+</html>

@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic Calendar with JSON</title>
+    <style>
+        @font-face {
+            font-family: 'KBOGothic medium';
+            src: url('/Users/jeon-yujin/Documents/workspace/crawler/kbo/frontend/font/KBO Dia Gothic_medium.ttf') format('truetype');
+            font-weight: normal;
+            font-style: normal;
+        }
+        @font-face {
+            font-family: 'KBOGothic bold';
+            src: url('/Users/jeon-yujin/Documents/workspace/crawler/kbo/frontend/font/KBO Dia Gothic_bold.ttf') format('truetype');
+            font-weight: normal;
+            font-style: normal;
+        }
+        @font-face {
+            font-family: 'KBOGothic light';
+            src: url('/Users/jeon-yujin/Documents/workspace/crawler/kbo/frontend/font/KBO Dia Gothic_light.ttf') format('truetype');
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        body {
+            font-family: 'KBOGothic medium';
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            padding: 20px;
+            background-color: #f9f9f9;
+        }
+        .controls {
+            margin-bottom: 20px;
+        }
+        .calendar {
+            width: 60%;
+            border-collapse: collapse;
+            background: #fff;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .calendar th, .calendar td {
+            font-family: 'KBOGothic medium';
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: center;
+            font-size: 11px;
+            cursor: pointer; /* 날짜에 클릭 가능한 UI */
+        }
+        .calendar th {
+            background: #f3f3f3;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        .calendar td {
+            font-family: 'KBOGothic bold';
+            height: 60px;
+            vertical-align: top;
+            text-align: center;
+        }
+        .calendar td:hover {
+            background-color: #f0f0f0;
+        }
+        .event {
+            margin-top: 5px;
+            font-size: 11px;
+            color: #555;
+        }
+        .nav-link {
+            position: absolute;
+            left: 20px;
+            top: 0;
+            font-size: 18px;
+            font-weight: bold;
+            color: #257CFF;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            width: 100%;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <a class="nav-link" href="index.html">야구ON</a>
+    </div>
+
+    <!-- Month Selector -->
+    <div class="controls">
+        <label for="month-select">Select Month: </label>
+        <select id="month-select">
+            <option value="2025-03">3월 2025</option>
+            <option value="2025-04">4월 2025</option>
+            <option value="2025-05">5월 2025</option>
+            <option value="2025-06">6월 2025</option>
+            <option value="2025-07">7월 2025</option>
+            <option value="2025-08">8월 2025</option>
+            <option value="2025-09">9월 2025</option>
+            <option value="2025-10">10월 2025</option>
+            <option value="2025-11">11월 2025</option>
+            <option value="2025-12">12월 2025</option>
+        </select>
+    </div>
+
+    <!-- Calendar Table -->
+    <table class="calendar">
+        <thead>
+            <tr>
+                <th>일</th>
+                <th>월</th>
+                <th>화</th>
+                <th>수</th>
+                <th>목</th>
+                <th>금</th>
+                <th>토</th>
+            </tr>
+        </thead>
+        <tbody id="calendar-body">
+            <!-- Calendar rows will be generated dynamically -->
+        </tbody>
+    </table>
+
+    <script src="../data/kbo_schedule.json" type="text/javascript"></script>
+    <script>
+        const calendarBody = document.getElementById('calendar-body');
+        const monthSelect = document.getElementById('month-select');
+        let eventData = {};
+    
+        // Fetch JSON data from the /schedule endpoint
+        async function fetchEventData() {
+            try {
+                eventData = JSON.parse(JSON.stringify(TestFile)); // Load event data
+                console.log("Event Data Loaded:", eventData);
+
+                // Generate the initial calendar
+                const initialMonth = 2; // March 2025
+                generateCalendar(2025, initialMonth);
+            } catch (error) {
+                console.error("Error loading event data:", error);
+            }
+        }
+    
+        // Function to generate calendar
+        function generateCalendar(year, month) {
+            calendarBody.innerHTML = '';
+
+            // Days in the selected month
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+            // First day of the month
+            const firstDay = new Date(year, month, 1).getDay();
+
+            // Get events for the month
+            const monthKey = `${year}-${String(month + 1).padStart(2, '0')}`;
+            const events = eventData[monthKey] || [];
+
+            let row = document.createElement('tr');
+            for (let i = 0; i < firstDay; i++) {
+                row.appendChild(document.createElement('td')); // Empty cells before the first day
+            }
+
+            // Add days to the calendar
+            for (let day = 1; day <= daysInMonth; day++) {
+                const cell = document.createElement('td');
+                cell.textContent = day;
+
+                // Check for events on this day
+                const dailyEvents = events.filter(e => {
+                    const eventDate = new Date(e.date);
+                    return (
+                        eventDate.getFullYear() === year &&
+                        eventDate.getMonth() === month &&
+                        eventDate.getDate() === day
+                    );
+                });
+
+                if (dailyEvents.length > 0) {
+                    dailyEvents.forEach(event => {
+                        const eventDiv = document.createElement('div');
+                        eventDiv.className = 'event';
+                        eventDiv.textContent = `${event.home_team} vs ${event.away_team}`;
+                        cell.appendChild(eventDiv);
+                    });
+                }
+
+                // Add click event to navigate to schedule.html with selected date
+                cell.addEventListener('click', () => {
+                    const selectedDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                    window.location.href = `schedule.html?date=${selectedDate}`;
+                });
+
+                row.appendChild(cell);
+
+                if ((firstDay + day) % 7 === 0) {
+                    calendarBody.appendChild(row);
+                    row = document.createElement('tr');
+                }
+            }
+
+            if (row.children.length > 0) {
+                calendarBody.appendChild(row);
+            }
+        }
+
+        // Handle Month Change
+        monthSelect.addEventListener('change', (event) => {
+            const [year, month] = event.target.value.split('-').map(Number);
+            generateCalendar(year, month - 1); // Month is 0-based
+        });
+
+        fetchEventData();
+    </script>
+</body>
+</html>
