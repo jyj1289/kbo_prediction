@@ -189,7 +189,7 @@
                     dailyEvents.forEach(event => {
                         const eventDiv = document.createElement('div');
                         eventDiv.className = 'event';
-                        eventDiv.textContent = `${event.home_team} vs ${event.away_team}`;
+                        eventDiv.textContent = `${event.away_team} vs ${event.home_team}`;
                         cell.appendChild(eventDiv);
                     });
                 }
