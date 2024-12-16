@@ -148,17 +148,29 @@
     <script>
         const startDate = new Date("2025-03-22");
         const endDate = new Date("2025-05-31");
-
+    
         const cardContainer = document.getElementById("card-container");
         const predictionDiv = document.getElementById("prediction");
         const currentDateDiv = document.getElementById("current-date");
         const chartContainer = document.getElementById("chart-container");
-
+    
         let scheduleData = {};
         let attendanceData = {};
         let selectedCard = null;
         let chart = null;
-
+    
+        // 각 구장의 최대 관중 수 정보
+        const maxCapacity = {
+            "창원": 22112,
+            "대구": 29178,
+            "고척": 22258,
+            "광주": 27000,
+            "인천": 23000,
+            "수원": 18700,
+            "사직": 22990,
+            "잠실": 23750,
+        };
+    
         async function loadData() {
             try {
                 scheduleData = JSON.parse(JSON.stringify(TestFile)); // Replace with schedule data
@@ -170,40 +182,40 @@
                 console.error("Error loading data:", error);
             }
         }
-
+    
         function getDateFromURL() {
             const urlParams = new URLSearchParams(window.location.search);
             return urlParams.get("date");
         }
-
+    
         function generateCards(date) {
             cardContainer.innerHTML = "";
             const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
             const dayKey = date.toISOString().split("T")[0];
-
+    
             predictionDiv.innerHTML = "";
             if (chartContainer) chartContainer.style.display = "none";
-
+    
             if (selectedCard) {
                 selectedCard.classList.remove("selected");
                 selectedCard = null;
             }
-
+    
             if (!scheduleData[monthKey]) {
                 cardContainer.innerHTML = `<p>No matches scheduled for this month.</p>`;
                 return;
             }
-
+    
             const matches = scheduleData[monthKey].filter(match => match.date === dayKey);
             if (matches.length === 0) {
                 cardContainer.innerHTML = `<p>No matches scheduled for this date.</p>`;
                 return;
             }
-
+    
             matches.forEach(match => {
                 const { home_team, away_team, location } = match;
                 const time = date.getDay() === 0 || date.getDay() === 6 ? "17:00" : "18:30";
-
+    
                 const card = document.createElement("div");
                 card.className = "card";
                 card.innerHTML = `
@@ -215,20 +227,20 @@
                         <img src="./images/${home_team}.svg" alt="${home_team}">
                     </div>
                 `;
-
+    
                 card.addEventListener("click", () => handleCardSelection(card, date, location, home_team, away_team));
                 cardContainer.appendChild(card);
             });
         }
-
+    
         function handleCardSelection(card, date, location, homeTeam, awayTeam) {
             if (selectedCard) selectedCard.classList.remove("selected");
             selectedCard = card;
             selectedCard.classList.add("selected");
-
+    
             fetchPrediction(date, location, homeTeam, awayTeam);
         }
-
+    
         async function fetchPrediction(date, location, homeTeam, awayTeam) {
             try {
                 const response = await fetch("http://localhost:8080/predict", {
@@ -241,20 +253,26 @@
                         away_team: awayTeam,
                     }),
                 });
-
+    
                 const data = await response.json();
                 if (response.ok) {
                     const dayOfWeek = date.toLocaleString("ko-KR", { weekday: "short" });
                     const avgAttendance = attendanceData[location][dayOfWeek] || 0;
-
+                    const maxCapacityForLocation = maxCapacity[location] || 0;
+    
+                    // 최대 관중 수 대비 예측 관중 수 비율 계산
+                    const capacityPercentage = maxCapacityForLocation
+                        ? ((data.predicted_attendance / maxCapacityForLocation) * 100).toFixed(2)
+                        : "N/A";
+    
                     predictionDiv.innerHTML = `
                         <p>${location} 경기장</p>
-                        <p>예상 관중 수: ${data.predicted_attendance}명</p>
+                        <p>예상 관중 수: ${data.predicted_attendance}명 (${capacityPercentage}%)</p>
                         <p>티켓팅 성공 확률: ${data.ticketing_probability}%</p>
                         <p>평균 관중수(${dayOfWeek}): ${avgAttendance}명</p>
                         <p>차이: ${data.predicted_attendance - avgAttendance}명</p>
                     `;
-
+    
                     if (chartContainer) chartContainer.style.display = "block";
                     updateChart(location, dayOfWeek, data.predicted_attendance);
                 }
@@ -262,15 +280,15 @@
                 predictionDiv.innerHTML = `<p>Error fetching prediction.</p>`;
             }
         }
-
+    
         function updateChart(location, dayOfWeek, predictedAttendance) {
             const weekDays = ["화", "수", "목", "금", "토", "일"];
             const avgAttendances = weekDays.map(day => attendanceData[location][day] || 0);
-
+    
             const colors = weekDays.map(day => (day === dayOfWeek ? "#FF5733" : "#257CFF"));
-
+    
             if (chart) chart.destroy();
-
+    
             const ctx = document.getElementById("attendanceChart").getContext("2d");
             chart = new Chart(ctx, {
                 type: "bar",
@@ -288,11 +306,11 @@
                 },
             });
         }
-
+    
         function updateDate() {
             currentDateDiv.textContent = currentDate.toISOString().split("T")[0];
             generateCards(currentDate);
-
+    
             predictionDiv.innerHTML = "";
             if (chartContainer) chartContainer.style.display = "none";
             if (chart) {
@@ -300,18 +318,19 @@
                 chart = null;
             }
         }
-
+    
         document.getElementById("prev-arrow").addEventListener("click", () => {
             if (currentDate > startDate) currentDate.setDate(currentDate.getDate() - 1);
             updateDate();
         });
-
+    
         document.getElementById("next-arrow").addEventListener("click", () => {
             if (currentDate < endDate) currentDate.setDate(currentDate.getDate() + 1);
             updateDate();
         });
-
+    
         loadData();
     </script>
+    
 </body>
 </html>
